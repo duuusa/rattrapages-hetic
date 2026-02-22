@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Smart Action Board — NovaRetail PoC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@200;400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --glass-bg: rgba(255,255,255,0.45);
+    --glass-bg-heavy: rgba(255,255,255,0.62);
+    --glass-border: rgba(255,255,255,0.55);
+    --glass-shadow: 0 2px 32px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(255,255,255,0.6) inset;
+    --glass-blur: blur(40px) saturate(1.8);
+    --text-primary: #1a1a2e;
+    --text-secondary: rgba(60,60,80,0.6);
+    --text-tertiary: rgba(60,60,80,0.4);
+    --accent: #007AFF;
+    --critical: #FF3B30;
+    --warning: #FF9500;
+    --info: #007AFF;
+    --success: #34C759;
+    --radius-sm: 14px;
+    --radius-md: 20px;
+    --radius-lg: 26px;
+    --radius-xl: 32px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', system-ui, sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #000;
+  }
+
+  /* ============ ANIMATED MESH BACKGROUND ============ */
+  .mesh-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background: linear-gradient(135deg, #1a0533 0%, #0a1628 30%, #0d2137 60%, #1a0533 100%);
+    overflow: hidden;
+  }
+  .mesh-bg::before, .mesh-bg::after {
+    content: ''; position: absolute; border-radius: 50%;
+    filter: blur(80px); animation: drift 12s ease-in-out infinite alternate;
+  }
+  .mesh-bg::before {
+    width: 500px; height: 500px; top: -15%; left: -10%;
+    background: radial-gradient(circle, rgba(120,80,220,0.4), transparent 70%);
+  }
+  .mesh-bg::after {
+    width: 450px; height: 450px; bottom: -10%; right: -10%;
+    background: radial-gradient(circle, rgba(0,122,255,0.35), transparent 70%);
+    animation-delay: -6s;
+  }
+  .mesh-orb {
+    position: absolute; border-radius: 50%; filter: blur(60px);
+  }
+  .mesh-orb.orb1 {
+    width: 300px; height: 300px; top: 40%; left: 30%;
+    background: radial-gradient(circle, rgba(255,100,80,0.2), transparent 70%);
+    animation: drift2 15s ease-in-out infinite alternate;
+  }
+  .mesh-orb.orb2 {
+    width: 350px; height: 350px; top: 20%; right: 20%;
+    background: radial-gradient(circle, rgba(0,200,180,0.15), transparent 70%);
+    animation: drift 18s ease-in-out infinite alternate-reverse;
+  }
+
+  @keyframes drift {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(40px, -30px) scale(1.1); }
+  }
+  @keyframes drift2 {
+    0% { transform: translate(0,0) scale(1); }
+    100% { transform: translate(-50px, 30px) scale(1.15); }
+  }
+
+  /* ============ DEVICE FRAME ============ */
+  .demo-wrapper {
+    position: relative; z-index: 1;
+    display: flex; flex-direction: column; align-items: center; gap: 20px;
+  }
+  .demo-title {
+    text-align: center; color: rgba(255,255,255,0.7);
+    font-size: 11px; font-weight: 600; letter-spacing: 2.5px; text-transform: uppercase;
+  }
+  .demo-subtitle {
+    color: #fff; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; margin-top: 2px;
+  }
+
+  .device {
+    width: 380px; height: 740px;
+    border-radius: 44px;
+    background: #000;
+    padding: 6px;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.12) inset,
+      0 30px 80px rgba(0,0,0,0.5),
+      0 0 0 1px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .device-screen {
+    width: 100%; height: 100%;
+    border-radius: 40px;
+    overflow: hidden;
+    position: relative;
+    background: #f2f2f7;
+  }
+
+  /* Dynamic Island */
+  .dynamic-island {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    width: 126px; height: 34px;
+    background: #000; border-radius: 22px;
+    z-index: 100;
+  }
+
+  /* ============ SCREEN BACKGROUNDS ============ */
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+    opacity: 0; pointer-events: none;
+    transform: scale(0.96);
+  }
+  .screen.active {
+    opacity: 1; pointer-events: all; transform: scale(1);
+  }
+  .screen.slide-right {
+    transform: translateX(30px) scale(0.97);
+  }
+  .screen.slide-right.active {
+    transform: translateX(0) scale(1);
+  }
+
+  /* ============ LOCK SCREEN ============ */
+  .lock-screen {
+    background: linear-gradient(170deg, #1a0e3e 0%, #0c1f3d 40%, #0a2847 70%, #162040 100%);
+    align-items: center; justify-content: center;
+  }
+  .lock-screen::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(120,80,255,0.2), transparent 60%),
+                radial-gradient(ellipse at 70% 70%, rgba(0,122,255,0.15), transparent 50%);
+  }
+  .lock-time {
+    font-size: 76px; font-weight: 200; color: #fff;
+    letter-spacing: -3px; line-height: 1; z-index: 1;
+    text-shadow: 0 0 40px rgba(255,255,255,0.1);
+  }
+  .lock-date {
+    font-size: 17px; color: rgba(255,255,255,0.7); font-weight: 400;
+    margin-top: 6px; z-index: 1; letter-spacing: 0.3px;
+  }
+
+  .lock-notif {
+    position: absolute; top: 60px; left: 14px; right: 14px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    cursor: pointer;
+    transform: translateY(-140px);
+    opacity: 0;
+    transition: all 0.7s cubic-bezier(0.32, 0.72, 0, 1);
+    display: flex; gap: 12px; align-items: flex-start;
+    z-index: 10;
+  }
+  .lock-notif.visible {
+    transform: translateY(0); opacity: 1;
+  }
+  .lock-notif:active { transform: scale(0.97); }
+  .notif-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    background: linear-gradient(135deg, #5856D6, #AF52DE);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; flex-shrink: 0;
+  }
+  .notif-app {
+    font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.85);
+    margin-bottom: 2px; letter-spacing: 0.1px;
+  }
+  .notif-body {
+    font-size: 14px; color: rgba(255,255,255,0.7); line-height: 1.4;
+  }
+  .notif-body strong { color: #fff; }
+
+  .lock-hint {
+    position: absolute; bottom: 28px; z-index: 1;
+    font-size: 13px; color: rgba(255,255,255,0.3);
+    animation: breathe 2.5s ease-in-out infinite;
+  }
+  @keyframes breathe { 0%,100% { opacity: 0.3; } 50% { opacity: 0.6; } }
+
+  /* ============ BOARD SCREEN ============ */
+  .board-screen {
+    background: linear-gradient(180deg, #e8e0f0 0%, #d4e4f7 30%, #dce8f0 60%, #f0ece8 100%);
+  }
+  .board-header {
+    padding: 54px 20px 0;
+    position: relative; z-index: 2;
+  }
+  .board-greeting-label {
+    font-size: 13px; color: var(--text-tertiary); font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase; margin-bottom: 2px;
+  }
+  .board-greeting {
+    font-size: 26px; font-weight: 800; color: var(--text-primary);
+    letter-spacing: -0.5px;
+  }
+  .board-avatar {
+    position: absolute; top: 54px; right: 20px;
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #5856D6, #AF52DE);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 17px;
+    box-shadow: 0 4px 16px rgba(88,86,214,0.3);
+  }
+
+  /* Glass progress bar */
+  .progress-glass {
+    margin: 18px 20px 0;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    position: relative; z-index: 2;
+  }
+  .progress-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .progress-label { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .progress-link {
+    font-size: 13px; font-weight: 600; color: var(--accent);
+    cursor: pointer; background: none; border: none;
+    font-family: inherit;
+  }
+  .progress-track {
+    height: 6px; border-radius: 3px;
+    background: rgba(0,0,0,0.06); overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, #5856D6, #AF52DE);
+    transition: width 0.8s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .progress-fill.done {
+    background: linear-gradient(90deg, #34C759, #30D158);
+  }
+
+  /* Action cards container */
+  .cards-area {
+    flex: 1; overflow-y: auto; overflow-x: hidden;
+    padding: 16px 20px 20px;
+    display: flex; flex-direction: column; gap: 12px;
+    position: relative; z-index: 2;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Liquid Glass Card */
+  .action-card {
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg-heavy);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 18px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.3s ease;
+    animation: cardIn 0.6s both cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .action-card:nth-child(1) { animation-delay: 0.05s; }
+  .action-card:nth-child(2) { animation-delay: 0.12s; }
+  .action-card:nth-child(3) { animation-delay: 0.19s; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .action-card:active { transform: scale(0.97); }
+
+  /* Severity accent stripe */
+  .card-accent {
+    position: absolute; left: 0; top: 14px; bottom: 14px; width: 4px;
+    border-radius: 0 3px 3px 0;
+  }
+  .card-accent.critical { background: var(--critical); box-shadow: 0 0 12px rgba(255,59,48,0.3); }
+  .card-accent.warning { background: var(--warning); box-shadow: 0 0 12px rgba(255,149,0,0.3); }
+  .card-accent.info { background: var(--info); box-shadow: 0 0 12px rgba(0,122,255,0.3); }
+
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-left: 8px; }
+  .card-badge {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.5px;
+    padding: 3px 10px; border-radius: 20px;
+    display: flex; align-items: center; gap: 5px;
+    backdrop-filter: blur(10px);
+  }
+  .card-badge.critical { color: var(--critical); background: rgba(255,59,48,0.12); }
+  .card-badge.warning { color: var(--warning); background: rgba(255,149,0,0.12); }
+  .card-badge.info { color: var(--info); background: rgba(0,122,255,0.12); }
+
+  .card-location {
+    font-size: 12px; color: var(--text-tertiary);
+    display: flex; align-items: center; gap: 4px;
+  }
+  .card-title {
+    font-size: 16px; font-weight: 700; color: var(--text-primary);
+    line-height: 1.35; margin-bottom: 10px; padding-left: 8px;
+  }
+  .card-bottom { display: flex; justify-content: space-between; align-items: center; padding-left: 8px; }
+  .card-hint { font-size: 13px; color: var(--text-tertiary); }
+  .card-kpi {
+    backdrop-filter: blur(20px);
+    background: rgba(255,255,255,0.5);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-radius: var(--radius-sm);
+    padding: 6px 12px; text-align: center;
+  }
+  .card-kpi-value { font-size: 15px; font-weight: 800; }
+  .card-kpi-label { font-size: 10px; color: var(--text-tertiary); margin-top: 1px; }
+  .card-kpi.critical .card-kpi-value { color: var(--critical); }
+  .card-kpi.warning .card-kpi-value { color: var(--warning); }
+  .card-kpi.info .card-kpi-value { color: var(--info); }
+
+  /* ============ COMPLETION STATE ============ */
+  .complete-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    text-align: center; padding: 32px;
+    animation: fadeUp 0.6s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); }
+  }
+  .complete-emoji { font-size: 60px; margin-bottom: 16px; }
+  .complete-title { font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 8px; }
+  .complete-sub { font-size: 15px; color: var(--text-secondary); line-height: 1.5; max-width: 280px; }
+  .complete-btn {
+    margin-top: 28px; padding: 14px 32px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: rgba(88,86,214,0.85);
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: var(--radius-md);
+    color: #fff; font-weight: 700; font-size: 15px;
+    cursor: pointer; font-family: inherit;
+    box-shadow: 0 4px 20px rgba(88,86,214,0.3);
+    transition: transform 0.2s;
+  }
+  .complete-btn:active { transform: scale(0.96); }
+
+  /* ============ DETAIL SCREEN ============ */
+  .detail-screen {
+    background: linear-gradient(180deg, #e8e0f0 0%, #d4e4f7 40%, #f0ece8 100%);
+  }
+  .detail-topbar {
+    padding: 54px 20px 14px;
+    display: flex; align-items: center; gap: 10px;
+    position: relative; z-index: 2;
+  }
+  .back-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 17px; color: var(--text-primary);
+    transition: transform 0.2s;
+  }
+  .back-btn:active { transform: scale(0.9); }
+  .detail-topbar-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; flex: 1; }
+
+  .detail-content {
+    flex: 1; overflow-y: auto; padding: 8px 20px 0;
+    position: relative; z-index: 2;
+    -webkit-overflow-scrolling: touch;
+  }
+  .detail-hero {
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg-heavy);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 24px; margin-bottom: 14px;
+    animation: fadeUp 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .detail-icon { font-size: 36px; margin-bottom: 12px; }
+  .detail-title { font-size: 22px; font-weight: 800; color: var(--text-primary); line-height: 1.25; margin-bottom: 8px; }
+  .detail-location-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 13px; color: var(--text-secondary);
+    backdrop-filter: blur(10px);
+    background: rgba(0,0,0,0.04);
+    border-radius: 10px; padding: 5px 12px;
+  }
+
+  .detail-why {
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg-heavy);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-lg);
+    padding: 22px; margin-bottom: 14px;
+    animation: fadeUp 0.55s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .why-label {
+    font-size: 12px; font-weight: 700; color: var(--text-tertiary);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px;
+  }
+  .why-text {
+    font-size: 15px; color: var(--text-primary); line-height: 1.65; margin-bottom: 18px;
+  }
+  .why-kpi-box {
+    display: flex; align-items: center; gap: 14px;
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+  }
+  .why-kpi-box.critical { background: rgba(255,59,48,0.08); border: 1px solid rgba(255,59,48,0.15); }
+  .why-kpi-box.warning { background: rgba(255,149,0,0.08); border: 1px solid rgba(255,149,0,0.15); }
+  .why-kpi-box.info { background: rgba(0,122,255,0.08); border: 1px solid rgba(0,122,255,0.15); }
+  .why-kpi-icon {
+    width: 46px; height: 46px; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 800; font-size: 13px;
+  }
+  .why-kpi-icon.critical { background: var(--critical); }
+  .why-kpi-icon.warning { background: var(--warning); }
+  .why-kpi-icon.info { background: var(--info); }
+  .why-kpi-title { font-size: 14px; font-weight: 700; }
+  .why-kpi-title.critical { color: var(--critical); }
+  .why-kpi-title.warning { color: var(--warning); }
+  .why-kpi-title.info { color: var(--info); }
+  .why-kpi-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 1px; }
+
+  /* Detail action buttons */
+  .detail-actions {
+    padding: 12px 20px 28px;
+    display: flex; gap: 10px;
+    position: relative; z-index: 2;
+  }
+  .btn-delegate, .btn-handle {
+    border: none; cursor: pointer; font-family: inherit;
+    border-radius: var(--radius-md);
+    padding: 16px; font-size: 15px; font-weight: 700;
+    transition: transform 0.2s;
+    text-align: center;
+  }
+  .btn-delegate:active, .btn-handle:active { transform: scale(0.96); }
+  .btn-delegate {
+    flex: 1;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    color: var(--text-primary);
+  }
+  .btn-handle {
+    flex: 1.5; color: #fff; border: none;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .btn-handle.critical { background: linear-gradient(135deg, #FF3B30, #FF6259); }
+  .btn-handle.warning { background: linear-gradient(135deg, #FF9500, #FFAD33); }
+  .btn-handle.info { background: linear-gradient(135deg, #007AFF, #409CFF); }
+
+  /* ============ HISTORY SCREEN ============ */
+  .history-screen {
+    background: linear-gradient(180deg, #e8e0f0 0%, #d4e4f7 40%, #f0ece8 100%);
+  }
+  .history-topbar {
+    padding: 54px 20px 14px;
+    display: flex; align-items: center; gap: 12px;
+    position: relative; z-index: 2;
+  }
+  .history-title { font-size: 18px; font-weight: 800; color: var(--text-primary); }
+  .history-list {
+    flex: 1; overflow-y: auto; padding: 8px 20px 28px;
+    display: flex; flex-direction: column; gap: 10px;
+    position: relative; z-index: 2;
+    -webkit-overflow-scrolling: touch;
+  }
+  .history-item {
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-shadow);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    animation: cardIn 0.5s both cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .history-item:nth-child(1) { animation-delay: 0.05s; }
+  .history-item:nth-child(2) { animation-delay: 0.1s; }
+  .history-item:nth-child(3) { animation-delay: 0.15s; }
+  .history-icon {
+    width: 40px; height: 40px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .history-icon.done { background: rgba(52,199,89,0.12); }
+  .history-icon.delegated { background: rgba(255,149,0,0.12); }
+  .history-info { flex: 1; }
+  .history-info-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+  .history-info-sub { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+  .history-empty {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--text-tertiary);
+  }
+
+  /* ============ TOAST ============ */
+  .toast {
+    position: absolute; bottom: 26px; left: 16px; right: 16px;
+    backdrop-filter: blur(40px) saturate(1.8);
+    -webkit-backdrop-filter: blur(40px) saturate(1.8);
+    background: rgba(30,30,40,0.78);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    padding: 14px 18px;
+    color: #fff; font-size: 14px; font-weight: 600;
+    text-align: center; z-index: 200;
+    animation: toastIn 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  @keyframes toastIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ RESET BUTTON ============ */
+  .reset-btn {
+    padding: 10px 26px;
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px;
+    font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.7);
+    cursor: pointer; font-family: inherit;
+    transition: all 0.2s;
+  }
+  .reset-btn:hover { background: rgba(255,255,255,0.16); color: #fff; }
+
+  /* ============ MOBILE RESPONSIVE ============ */
+  @media (max-width: 420px) {
+    body { align-items: flex-start; }
+    .demo-wrapper { gap: 0; }
+    .demo-title, .demo-subtitle, .reset-btn { display: none; }
+    .device {
+      width: 100vw; height: 100dvh;
+      border-radius: 0; padding: 0;
+      box-shadow: none;
+    }
+    .device-screen { border-radius: 0; }
+    .dynamic-island { top: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="mesh-bg">
+  <div class="mesh-orb orb1"></div>
+  <div class="mesh-orb orb2"></div>
+</div>
+
+<div class="demo-wrapper">
+  <div>
+    <div class="demo-title">NovaRetail · Proof of Concept</div>
+    <div class="demo-subtitle" style="text-align:center; color:#fff;">Smart Action Board</div>
+  </div>
+
+  <div class="device">
+    <div class="device-screen" id="app">
+      <div class="dynamic-island"></div>
+      <!-- Screens are injected by JS -->
+    </div>
+  </div>
+
+  <button class="reset-btn" onclick="resetDemo()">↻ Relancer la démo</button>
+</div>
+
+<script>
+// ==================== DATA ====================
+const ACTIONS = [
+  {
+    id: 1, severity: "critical",
+    title: "Rupture de stock imminente",
+    location: "Rayon Frais", icon: "📦",
+    explanation: "Le stock en rayon est de 0, mais une palette de 50 unités a été réceptionnée à 06h00. Risque de perte CA estimé\u00a0: 300\u202f€ avant midi.",
+    kpi: "300€", kpiLabel: "Perte CA estimée",
+  },
+  {
+    id: 2, severity: "warning",
+    title: "Planogramme non conforme",
+    location: "Tête de gondole P3", icon: "🏷️",
+    explanation: "La mise en avant promotionnelle «\u00a0-30% Lessive\u00a0» expire aujourd'hui. Le nouveau planogramme «\u00a0Rentrée Hygiène\u00a0» doit être installé avant 10h00 pour respecter le plan merchandising national.",
+    kpi: "10h00", kpiLabel: "Deadline",
+  },
+  {
+    id: 3, severity: "info",
+    title: "Livraison exceptionnelle à réceptionner",
+    location: "Quai B — Surgelés", icon: "🚛",
+    explanation: "Un camion hors planning est annoncé à 09h30 (transfert inter-magasins). 12 palettes surgelés nécessitent une mise en chambre froide sous 20\u00a0min pour respecter la chaîne du froid.",
+    kpi: "09h30", kpiLabel: "Arrivée estimée",
+  },
+];
+
+let state = { screen: "lock", selectedAction: null, completedIds: [], delegatedIds: [] };
+const app = document.getElementById("app");
+
+// ==================== RENDER ENGINE ====================
+function render() {
+  // Keep dynamic island
+  const island = '<div class="dynamic-island"></div>';
+  let html = island;
+
+  // Lock Screen
+  html += `
+    <div class="screen ${state.screen === 'lock' ? 'active' : ''}" id="lockScreen">
+      ${renderLockScreen()}
+    </div>
+    <div class="screen slide-right ${state.screen === 'board' ? 'active' : ''}" id="boardScreen">
+      ${renderBoardScreen()}
+    </div>
+    <div class="screen slide-right ${state.screen === 'detail' ? 'active' : ''}" id="detailScreen">
+      ${state.selectedAction ? renderDetailScreen(state.selectedAction) : ''}
+    </div>
+    <div class="screen slide-right ${state.screen === 'history' ? 'active' : ''}" id="historyScreen">
+      ${renderHistoryScreen()}
+    </div>
+  `;
+
+  if (state.toast) {
+    html += `<div class="toast">${state.toast}</div>`;
+  }
+
+  app.innerHTML = html;
+
+  // Trigger notification animation
+  if (state.screen === 'lock') {
+    setTimeout(() => {
+      const notif = document.querySelector('.lock-notif');
+      if (notif) notif.classList.add('visible');
+    }, 700);
+  }
+}
+
+function getTime() {
+  const now = new Date();
+  return now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+}
+function getDate() {
+  return new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function renderLockScreen() {
+  return `
+    <div style="position:absolute;inset:0;background:linear-gradient(170deg,#1a0e3e 0%,#0c1f3d 40%,#0a2847 70%,#162040 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 30% 20%,rgba(120,80,255,0.2),transparent 60%),radial-gradient(ellipse at 70% 70%,rgba(0,122,255,0.15),transparent 50%);"></div>
+      <div class="lock-time">${getTime()}</div>
+      <div class="lock-date">${getDate()}</div>
+      <div class="lock-notif" onclick="goTo('board')">
+        <div class="notif-icon">⚡</div>
+        <div>
+          <div class="notif-app">NovaRetail · Smart Actions</div>
+          <div class="notif-body">Bonjour Thomas. <strong>3 actions prioritaires</strong> requièrent votre attention pour sécuriser l'ouverture.</div>
+        </div>
+      </div>
+      <div class="lock-hint">Appuyez sur la notification pour ouvrir</div>
+    </div>
+  `;
+}
+
+function renderBoardScreen() {
+  const remaining = ACTIONS.filter(a => !state.completedIds.includes(a.id));
+  const done = state.completedIds.length;
+  const total = ACTIONS.length;
+  const pct = (done / total) * 100;
+  const allDone = done === total;
+
+  let cardsHtml;
+  if (allDone) {
+    cardsHtml = `
+      <div class="complete-state">
+        <div class="complete-emoji">🎉</div>
+        <div class="complete-title">Toutes les actions sont traitées\u00a0!</div>
+        <div class="complete-sub">Excellente prise de poste, Thomas. Votre magasin est prêt pour l'ouverture.</div>
+        <button class="complete-btn" onclick="goTo('history')">Consulter l'historique</button>
+      </div>
+    `;
+  } else {
+    cardsHtml = `<div class="cards-area">${remaining.map(a => renderCard(a)).join('')}</div>`;
+  }
+
+  return `
+    <div class="board-header">
+      <div class="board-greeting-label">Smart Action Board</div>
+      <div class="board-greeting">Bonjour Thomas 👋</div>
+      <div class="board-avatar">T</div>
+    </div>
+    <div class="progress-glass">
+      <div class="progress-row">
+        <span class="progress-label">${done}/${total} actions réalisées</span>
+        ${done > 0 ? `<button class="progress-link" onclick="goTo('history')">Historique →</button>` : ''}
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill ${allDone ? 'done' : ''}" style="width:${pct}%"></div>
+      </div>
+    </div>
+    ${cardsHtml}
+  `;
+}
+
+function renderCard(action) {
+  return `
+    <div class="action-card" onclick="selectAction(${action.id})">
+      <div class="card-accent ${action.severity}"></div>
+      <div class="card-top">
+        <div class="card-badge ${action.severity}">
+          <span>${action.icon}</span>
+          <span>${action.severity === 'critical' ? 'Critique' : action.severity === 'warning' ? 'Préventif' : 'Informatif'}</span>
+        </div>
+        <div class="card-location">📍 ${action.location}</div>
+      </div>
+      <div class="card-title">${action.title}</div>
+      <div class="card-bottom">
+        <div class="card-hint">Appuyez pour voir le détail</div>
+        <div class="card-kpi ${action.severity}">
+          <div class="card-kpi-value">${action.kpi}</div>
+          <div class="card-kpi-label">${action.kpiLabel}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDetailScreen(action) {
+  return `
+    <div class="detail-topbar">
+      <div class="back-btn" onclick="goTo('board')">‹</div>
+      <div class="detail-topbar-label">Détail de l'action</div>
+      <div class="card-badge ${action.severity}" style="font-size:11px;">
+        ${action.severity === 'critical' ? 'Critique' : action.severity === 'warning' ? 'Préventif' : 'Informatif'}
+      </div>
+    </div>
+    <div class="detail-content">
+      <div class="detail-hero">
+        <div class="detail-icon">${action.icon}</div>
+        <div class="detail-title">${action.title}</div>
+        <div class="detail-location-pill">📍 ${action.location}</div>
+      </div>
+      <div class="detail-why">
+        <div class="why-label">💡 Pourquoi cette action\u00a0?</div>
+        <div class="why-text">${action.explanation}</div>
+        <div class="why-kpi-box ${action.severity}">
+          <div class="why-kpi-icon ${action.severity}">${action.kpi}</div>
+          <div>
+            <div class="why-kpi-title ${action.severity}">${action.kpiLabel}</div>
+            <div class="why-kpi-sub">Indicateur clé de risque</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-actions">
+      <button class="btn-delegate" onclick="delegateAction(${action.id})">🤝 Déléguer</button>
+      <button class="btn-handle ${action.severity}" onclick="handleAction(${action.id})">✅ Je m'en occupe</button>
+    </div>
+  `;
+}
+
+function renderHistoryScreen() {
+  const items = ACTIONS.filter(a => state.completedIds.includes(a.id) || state.delegatedIds.includes(a.id));
+  if (items.length === 0) {
+    return `
+      <div class="history-topbar">
+        <div class="back-btn" onclick="goTo('board')">‹</div>
+        <div class="history-title">Historique</div>
+      </div>
+      <div class="history-empty">Aucune action traitée pour le moment.</div>
+    `;
+  }
+  return `
+    <div class="history-topbar">
+      <div class="back-btn" onclick="goTo('board')">‹</div>
+      <div class="history-title">Historique</div>
+    </div>
+    <div class="history-list">
+      ${items.map((a, i) => {
+        const isDelegated = state.delegatedIds.includes(a.id);
+        return `
+          <div class="history-item">
+            <div class="history-icon ${isDelegated ? 'delegated' : 'done'}">${isDelegated ? '🤝' : '✅'}</div>
+            <div class="history-info">
+              <div class="history-info-title">${a.title}</div>
+              <div class="history-info-sub">${a.location} · ${isDelegated ? 'Déléguée' : 'Traitée'} à 08h0${i + 1}</div>
+            </div>
+            <div class="card-badge ${a.severity}" style="font-size:10px;">
+              ${a.severity === 'critical' ? 'Critique' : a.severity === 'warning' ? 'Préventif' : 'Informatif'}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+// ==================== ACTIONS ====================
+function goTo(screen) { state.screen = screen; render(); }
+
+function selectAction(id) {
+  state.selectedAction = ACTIONS.find(a => a.id === id);
+  state.screen = 'detail';
+  render();
+}
+
+function handleAction(id) {
+  if (!state.completedIds.includes(id)) state.completedIds.push(id);
+  showToast('✅  Action prise en charge\u00a0!');
+  state.screen = 'board';
+  render();
+}
+
+function delegateAction(id) {
+  if (!state.completedIds.includes(id)) state.completedIds.push(id);
+  if (!state.delegatedIds.includes(id)) state.delegatedIds.push(id);
+  showToast('🤝  Action déléguée avec succès');
+  state.screen = 'board';
+  render();
+}
+
+function showToast(msg) {
+  state.toast = msg;
+  render();
+  setTimeout(() => { state.toast = null; render(); }, 2200);
+}
+
+function resetDemo() {
+  state = { screen: 'lock', selectedAction: null, completedIds: [], delegatedIds: [] };
+  render();
+}
+
+// ==================== INIT ====================
+render();
+// Update clock every minute
+setInterval(() => { if (state.screen === 'lock') render(); }, 30000);
+</script>
+</body>
+</html>
